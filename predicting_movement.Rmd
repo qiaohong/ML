@@ -1,0 +1,93 @@
+---
+title: "Predicting Movement Class"
+author: "Qiaohong"
+date: "11/3/2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(caret)
+set.seed(12345)
+```
+
+## Executive summary
+We would like to predict the correct or incorrect ways of lifting a barbell using data from accelerometers attached to the subjects. This analysis compares two different methods (random forest ad linear discriminant analysis). It is concluded that random forest is a better approach with higher accurancy. The oob (out of bag) and confidency interval for the model is reported. We also use the predicting model to predict 20 cases.
+
+## Data loading and cleaning
+
+We load the training data as well as the 20 test cases. The predicted variable is "classe". As there are many NA values in the data, we refer to the test cases - only fields with fully populated values in test cases are used in training data set for building our model.
+
+```{r data_load}
+## Load training data
+training <- read.csv("pml-training.csv", na.strings=c("#DIV/0!", "NA"))
+training$classe <- factor(training$classe)
+training <- training[, -c(1:7)]
+
+## Clean data, only taking columns that have non NA value from testing
+testing <- read.csv("pml-testing.csv", na.strings=c("#DIV/0!", "NA"))
+testing <- testing[, -c(1:7)]
+allmisscols <- testing[sapply(testing,function(x)all(is.na(x)))]
+colswithallmiss <-names(allmisscols) 
+testing[colswithallmiss] <- list(NULL)
+
+training[colswithallmiss] <- list(NULL)
+
+dim(training)
+```
+
+## Build the predicting model
+We notice that the training data set is fairly large. We split it into 70/30 into train and test. We also use cross validation (method="cv") in building the model.
+
+```{r build_training_data}
+## Partition data to training and testing sets
+inTrain <- createDataPartition(y=training$classe, 
+                               p=0.7,
+                               list=FALSE)
+
+train <- training[inTrain,]
+test <- training[-inTrain,]
+
+## Use cross validation
+ctrl <- trainControl(method="cv")
+```
+
+## Fit predicting models
+We choose two methods: random forest and naive bayes. We will build both models on train data and validate on test dataset to compare the accuracy.
+
+Random forest:
+```{r rf, cache=TRUE}
+rf_fit <- train(classe ~., 
+                data=train, 
+                method="rf", 
+                trControl=ctrl
+)
+
+rf_predict <- predict(rf_fit, newdata = test)
+confusionMatrix(rf_predict, test$classe)
+
+```
+
+Linear Discriminant Analysis:
+```{r nb, cache=TRUE}
+lda_fit <- train(classe ~., 
+                data=train, 
+                method="lda", 
+                trControl=ctrl
+)
+lda_predict <- predict(lda_fit, newdata = test)
+confusionMatrix(lda_predict, test$classe)
+
+```
+
+We could see that random forest gives much better accuracy, hence a better model. OOB suggests that the accuracy is 98.90%, with confidence interval 98.59% - 99.15%, p<0.001
+(The actual accuracy and range may differ slightly when the model is rerun, however the number should be fairly close.)
+
+## Forecasting 20 cases.
+At last, we forecast the 20 cases from testing data, using random forest model.
+```{r}
+predict(rf_fit, newdata=testing)
+```
+
+
+
